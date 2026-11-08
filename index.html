@@ -1,740 +1,1084 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HDA: Shock Room - Reanimación en Tiempo Real</title>
-    <!-- Tailwind CSS para diseño moderno -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@400;600;800&display=swap');
+    .font-mono-tech {
+        font-family: 'Share Tech Mono', monospace;
+    }
 
-        .font-mono-tech {
-            font-family: 'Share Tech Mono', monospace;
-        }
+    @keyframes monitor-flash {
+        0%, 100% { background-color: rgba(239, 68, 68, 0.2); }
+        50% { background-color: transparent; }
+    }
+    .vital-critical {
+        animation: monitor-flash 1s infinite;
+    }
 
-        /* Animación de pulso de monitor */
-        @keyframes pulse-red {
-            0%, 100% { opacity: 1; filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.8)); }
-            50% { opacity: 0.4; filter: drop-shadow(0 0 2px rgba(239, 68, 68, 0.2)); }
-        }
-        .vital-danger {
-            animation: pulse-red 1s infinite;
-        }
+    .screen-shake {
+        animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+    }
+    @keyframes shake {
+        10%, 90% { transform: translate3d(-3px, 0, 0); }
+        20%, 80% { transform: translate3d(5px, 0, 0); }
+        30%, 50%, 70% { transform: translate3d(-7px, 0, 0); }
+        40%, 60% { transform: translate3d(7px, 0, 0); }
+    }
 
-        /* Shake effect en sangrado masivo */
-        .shake {
-            animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
-        }
-        @keyframes shake {
-            10%, 90% { transform: translate3d(-2px, 0, 0); }
-            20%, 80% { transform: translate3d(4px, 0, 0); }
-            30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
-            40%, 60% { transform: translate3d(6px, 0, 0); }
-        }
+    .fluid-level {
+        transition: height 0.4s ease-out;
+    }
+</style>
 
-        /* Barra de volumen de sangre intraluminal */
-        .blood-pool {
-            transition: height 0.3s ease-out, background-color 0.3s ease;
-        }
-    </style>
-</head>
-<body class="bg-slate-950 text-slate-100 flex flex-col h-screen overflow-hidden select-none font-sans">
 
-    <!-- Top Bar: Monitor de Servicio de Urgencias y Marcadores -->
-    <header class="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between shrink-0 shadow-lg">
-        <div class="flex items-center gap-3">
-            <div class="w-3.5 h-3.5 rounded-full bg-red-600 animate-ping"></div>
-            <h1 class="text-xl font-bold tracking-wider uppercase text-slate-100 flex items-center gap-2">
-                <span class="text-red-500 font-mono-tech">EMERGENCY:</span> HDA RESUSCITATION
+<!-- Top Bar: Monitor de Servicio de Urgencias y Resumen de Caso -->
+<header class="bg-slate-900 border-b border-slate-800 px-5 py-2.5 flex items-center justify-between shrink-0 shadow-md">
+    <div class="flex items-center gap-3">
+        <div class="w-3.5 h-3.5 rounded-full bg-red-600 animate-ping"></div>
+        <div>
+            <h1 class="text-lg font-black tracking-wider uppercase text-slate-100 flex items-center gap-2">
+                <span class="text-red-500 font-mono-tech">BOX REANIMACIÓN:</span> HDA CRITICAL ENGINE
             </h1>
-            <span class="bg-red-950/80 text-red-400 text-xs px-2.5 py-0.5 rounded-full border border-red-700/50 font-medium">REANIMACIÓN ACTIVA</span>
-        </div>
-
-        <div class="flex items-center gap-6 font-mono-tech">
-            <div class="text-right">
-                <div class="text-xs text-slate-400">PACIENTE</div>
-                <div id="patient-id" class="text-sm font-bold text-amber-400">CARLOS M. (63a)</div>
-            </div>
-            <div class="text-right">
-                <div class="text-xs text-slate-400">TIEMPO VIVO</div>
-                <div id="game-timer" class="text-lg font-bold text-emerald-400">00:00</div>
-            </div>
-            <div class="text-right">
-                <div class="text-xs text-slate-400">PUNTAJE CLÍNICO</div>
-                <div id="score-display" class="text-lg font-bold text-cyan-400">0 PTS</div>
-            </div>
-        </div>
-    </header>
-
-    <!-- Main Game Frame -->
-    <main class="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-
-        <!-- Columna Izquierda: Monitor Multiparámetro Hemodinámico y Fisiopatología en Vivo -->
-        <section class="col-span-3 bg-slate-900/90 rounded-xl border border-slate-800 p-4 flex flex-col justify-between shadow-2xl relative">
-            <div>
-                <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
-                    <span class="text-xs uppercase font-bold tracking-wider text-slate-400 font-mono-tech">MONITOR HEMODINÁMICO</span>
-                    <span class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono-tech">DERIVACIÓN II</span>
-                </div>
-
-                <!-- Vitales -->
-                <div class="space-y-3 font-mono-tech">
-                    <!-- Presión Arterial -->
-                    <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                        <div class="text-xs text-slate-400 flex justify-between">
-                            <span>PA / PAM (Meta ≥65)</span>
-                            <span id="pam-val" class="font-bold text-emerald-400">PAM 58 mmHg</span>
-                        </div>
-                        <div class="text-2xl font-bold flex items-baseline gap-1" id="bp-display">
-                            <span id="pas-val" class="text-red-400 text-3xl">82</span>
-                            <span class="text-slate-500 text-lg">/</span>
-                            <span id="pad-val" class="text-red-400 text-2xl">46</span>
-                            <span class="text-xs text-slate-500 font-sans ml-1">mmHg</span>
-                        </div>
-                    </div>
-
-                    <!-- Frecuencia Cardíaca -->
-                    <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                        <div class="text-xs text-slate-400 flex justify-between">
-                            <span>FC (Taquicardia refleja)</span>
-                            <span class="text-slate-500">lpm</span>
-                        </div>
-                        <div class="text-3xl font-bold text-emerald-400" id="hr-display">124</div>
-                    </div>
-
-                    <!-- Saturación O2 & Vía Aérea -->
-                    <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                        <div class="text-xs text-slate-400 flex justify-between">
-                            <span>SatO2 & VÍA AÉREA</span>
-                            <span id="airway-status" class="text-amber-400 font-bold">BIGOTERA (Vulnerable)</span>
-                        </div>
-                        <div class="text-2xl font-bold text-cyan-400" id="spo2-display">93%</div>
-                    </div>
-
-                    <!-- Nivel de Hemoglobina y Umbral Transfusional -->
-                    <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                        <div class="text-xs text-slate-400 flex justify-between">
-                            <span>HEMOGLOBINA (Gatillo &lt;7.0)</span>
-                            <span class="text-slate-500">g/dL</span>
-                        </div>
-                        <div class="flex items-baseline justify-between">
-                            <span class="text-3xl font-bold text-rose-500" id="hb-display">6.4</span>
-                            <span class="text-xs text-slate-400 font-sans" id="hb-target">Meta: 7.0 - 8.0</span>
-                        </div>
-                    </div>
-
-                    <!-- pH Intragástrico y Coagulación -->
-                    <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                        <div class="text-xs text-slate-400 flex justify-between">
-                            <span>pH GÁSTRICO (Inactivar Pepsina ≥6.0)</span>
-                            <span id="ph-warning" class="text-red-400 text-[10px] font-bold">LISIS ACTIVA COÁGULO</span>
-                        </div>
-                        <div class="text-2xl font-bold text-amber-300" id="ph-display">2.2</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Panel de Fisiopatología Oculta (Diagnóstico Etiológico) -->
-            <div class="mt-3 bg-slate-950/70 p-3 rounded-lg border border-slate-800 font-mono-tech text-xs space-y-1.5">
-                <div class="text-slate-400 font-bold border-b border-slate-800 pb-1">PISTAS DEL EXPEDIENTE</div>
-                <div class="text-slate-300 flex justify-between">
-                    <span>AINEs crónicos:</span> <span id="hint-nsaid" class="text-amber-400 font-bold">Naproxeno + Ketorolaco</span>
-                </div>
-                <div class="text-slate-300 flex justify-between">
-                    <span>Estigmas Hepáticos:</span> <span id="hint-dhc" class="text-emerald-400 font-bold">Ausentes (No DHC)</span>
-                </div>
-                <div class="text-slate-300 flex justify-between">
-                    <span>BUN / Creatinina:</span> <span id="hint-bun" class="text-purple-400 font-bold">54 / 1.1 (Ratio 49:1)</span>
-                </div>
-            </div>
-        </section>
-
-        <!-- Columna Central: Escenario de Acción (Gástrico / Endoscopía Interactiva) -->
-        <section id="game-arena" class="col-span-6 bg-slate-900 rounded-xl border border-slate-800 p-4 flex flex-col justify-between shadow-2xl relative overflow-hidden">
-            
-            <!-- Header de Estado de la Hemorragia -->
-            <div class="flex items-center justify-between z-10">
-                <div class="flex items-center gap-2">
-                    <span class="text-xs font-mono-tech bg-slate-800 px-2 py-1 rounded text-slate-300">CAMPO VISUAL INTRA-LUMINAL</span>
-                    <span id="bleeding-badge" class="text-xs font-bold font-mono-tech bg-red-600/90 text-white px-2 py-1 rounded animate-pulse">SANGRADO ACTIVO: EN CHORRO (Forrest Ia)</span>
-                </div>
-                <div class="text-xs font-mono-tech text-slate-400">
-                    VISIBILIDAD EDA: <span id="visibility-val" class="font-bold text-rose-400">20% (Borra/Sangre)</span>
-                </div>
-            </div>
-
-            <!-- Área Visual del Órgano y Hemostasia (Canvas de Acción) -->
-            <div class="relative w-full h-80 my-auto rounded-lg bg-slate-950 border border-slate-800 overflow-hidden flex items-center justify-center">
-                
-                <!-- Sangre acumulada en estómago (simulación) -->
-                <div id="stomach-blood" class="absolute bottom-0 left-0 w-full bg-gradient-to-t from-red-950 via-red-900/80 to-transparent blood-pool" style="height: 65%;"></div>
-
-                <!-- Representación de Mucosa y Vaso Erosionado -->
-                <div class="relative z-10 flex flex-col items-center">
-                    <div id="ulcer-site" class="w-32 h-32 rounded-full border-4 border-red-900 bg-red-950/70 flex items-center justify-center relative cursor-crosshair shadow-inner group">
-                        
-                        <!-- Chorro o fuga activa -->
-                        <div id="blood-jet" class="w-3 h-16 bg-red-500 rounded-full blur-[1px] absolute -top-8 animate-bounce"></div>
-                        
-                        <!-- Coágulo o vaso -->
-                        <div id="vessel-target" class="w-8 h-8 rounded-full bg-red-700 border-2 border-red-400 flex items-center justify-center font-mono-tech text-[10px] text-white shadow-lg">
-                            VASO
-                        </div>
-
-                        <!-- Clips aplicados dinámicamente -->
-                        <div id="applied-clips" class="absolute inset-0 flex items-center justify-center pointer-events-none"></div>
-                    </div>
-                    <div id="action-prompt" class="mt-4 font-mono-tech text-xs bg-black/80 px-3 py-1 rounded border border-slate-700 text-slate-300">
-                        Haz clic en el vaso para aplicar terapia mecánica una vez despejado el campo.
-                    </div>
-                </div>
-
-                <!-- Efecto de hematemesis masiva repentina -->
-                <div id="vomit-overlay" class="absolute inset-0 bg-red-900/80 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
-                    <div class="text-center font-mono-tech">
-                        <div class="text-3xl font-extrabold text-white tracking-widest uppercase">¡HEMATEMESIS MASIVA!</div>
-                        <div class="text-sm text-red-200 mt-1">Vía aérea comprometida. Broncoaspiración inminente.</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Feed de Eventos Clínicos Dinámicos -->
-            <div class="bg-slate-950 rounded-lg p-3 border border-slate-800 h-28 overflow-y-auto font-mono-tech text-xs space-y-1" id="console-log">
-                <div class="text-slate-500">[00:00] Paciente ingresa diaforético, taquicárdico, hipotenso. Hematemesis en curso.</div>
-                <div class="text-amber-400">[00:00] ALERTA: Alto riesgo por Glasgow-Blatchford > 2. pH ácido destruyendo factores de coagulación.</div>
-            </div>
-        </section>
-
-        <!-- Columna Derecha: Consola de Decisión y Acciones de Reanimación Rápida -->
-        <section class="col-span-3 bg-slate-900/90 rounded-xl border border-slate-800 p-4 flex flex-col justify-between shadow-2xl">
-            <div>
-                <div class="border-b border-slate-800 pb-2 mb-3">
-                    <span class="text-xs uppercase font-bold tracking-wider text-slate-400 font-mono-tech">INTERVENCIONES CLÍNICAS (HOTKEYS: 1-8)</span>
-                </div>
-
-                <!-- Botones de Acción Inmediata Agrupados -->
-                <div class="space-y-2 font-mono-tech text-xs">
-                    
-                    <!-- 1. Vía Aérea -->
-                    <button onclick="actionIntubate()" class="w-full bg-slate-800 hover:bg-slate-700 active:bg-cyan-900 border border-slate-700 hover:border-cyan-500 p-2.5 rounded-lg flex items-center justify-between transition group">
-                        <span class="font-bold text-slate-200 group-hover:text-cyan-400">[1] IOT + Vía Aérea</span>
-                        <span class="text-[10px] bg-slate-900 text-slate-400 px-1.5 py-0.5 rounded">Proteger</span>
-                    </button>
-
-                    <!-- 2. Reanimación Cristaloides -->
-                    <button onclick="actionFluids()" class="w-full bg-slate-800 hover:bg-slate-700 active:bg-blue-900 border border-slate-700 hover:border-blue-500 p-2.5 rounded-lg flex items-center justify-between transition group">
-                        <span class="font-bold text-slate-200 group-hover:text-blue-400">[2] Bolo SF 0.9% (500 cc)</span>
-                        <span class="text-[10px] bg-slate-900 text-slate-400 px-1.5 py-0.5 rounded">Titular PAM</span>
-                    </button>
-
-                    <!-- 3. Transfusión Restrictiva -->
-                    <button onclick="actionTransfuse()" class="w-full bg-slate-800 hover:bg-slate-700 active:bg-red-900 border border-slate-700 hover:border-red-500 p-2.5 rounded-lg flex items-center justify-between transition group">
-                        <span class="font-bold text-slate-200 group-hover:text-red-400">[3] Transfundir 1U GR</span>
-                        <span class="text-[10px] bg-slate-900 text-slate-400 px-1.5 py-0.5 rounded">Gatillo &lt;7.0</span>
-                    </button>
-
-                    <!-- 4. Inhibidor Bomba Protones -->
-                    <button onclick="actionOmeprazole()" class="w-full bg-slate-800 hover:bg-slate-700 active:bg-amber-900 border border-slate-700 hover:border-amber-500 p-2.5 rounded-lg flex items-center justify-between transition group">
-                        <span class="font-bold text-slate-200 group-hover:text-amber-400">[4] Omeprazol 80mg EV</span>
-                        <span class="text-[10px] bg-slate-900 text-slate-400 px-1.5 py-0.5 rounded">Subir pH &gt;6</span>
-                    </button>
-
-                    <!-- 5. Procinético Pre-EDA -->
-                    <button onclick="actionErythromycin()" class="w-full bg-slate-800 hover:bg-slate-700 active:bg-purple-900 border border-slate-700 hover:border-purple-500 p-2.5 rounded-lg flex items-center justify-between transition group">
-                        <span class="font-bold text-slate-200 group-hover:text-purple-400">[5] Eritromicina 250mg</span>
-                        <span class="text-[10px] bg-slate-900 text-slate-400 px-1.5 py-0.5 rounded">Limpiar campo</span>
-                    </button>
-
-                    <!-- 6. Vasoactivos (Dilema Variceal vs No Variceal) -->
-                    <button onclick="actionTerlipressin()" class="w-full bg-slate-800 hover:bg-slate-700 active:bg-rose-900 border border-slate-700 hover:border-rose-500 p-2.5 rounded-lg flex items-center justify-between transition group">
-                        <span class="font-bold text-slate-200 group-hover:text-rose-400">[6] Terlipresina 2mg EV</span>
-                        <span class="text-[10px] bg-slate-900 text-slate-400 px-1.5 py-0.5 rounded">Vasoactivo</span>
-                    </button>
-
-                    <!-- 7. Terapia Endoscópica Combinada -->
-                    <button onclick="actionEndoTherapy()" class="w-full bg-slate-800 hover:bg-slate-700 active:bg-emerald-900 border border-slate-700 hover:border-emerald-500 p-2.5 rounded-lg flex items-center justify-between transition group">
-                        <span class="font-bold text-slate-200 group-hover:text-emerald-400">[7] Clip + Adrenalina (EDA)</span>
-                        <span class="text-[10px] bg-slate-900 text-slate-400 px-1.5 py-0.5 rounded">Hemostasia</span>
-                    </button>
-
-                    <!-- 8. Antibiótico Profiláctico -->
-                    <button onclick="actionCeftriaxone()" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-teal-500 p-2.5 rounded-lg flex items-center justify-between transition group">
-                        <span class="font-bold text-slate-200 group-hover:text-teal-400">[8] Ceftriaxona 1g EV</span>
-                        <span class="text-[10px] bg-slate-900 text-slate-400 px-1.5 py-0.5 rounded">Profilaxis PBE</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Botón de Pausa / Reinicio Rápido -->
-            <div class="pt-2">
-                <button onclick="resetGame()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-mono-tech text-xs tracking-wider border border-slate-700 transition">
-                    REINICIAR ESCENARIO (ESC)
-                </button>
-            </div>
-        </section>
-    </main>
-
-    <!-- Modal de Fin de Partida / Retroalimentación Fisiopatológica Inmediata -->
-    <div id="modal-gameover" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl font-mono-tech text-left">
-            <div id="modal-title" class="text-2xl font-bold mb-2">PACIENTE FALLECIDO EN BOX</div>
-            <div id="modal-desc" class="text-sm text-slate-300 mb-4 leading-relaxed font-sans">
-                El paciente desarrolló fibrilación ventricular secundaria a shock hipovolémico descompensado y acidosis profunda.
-            </div>
-
-            <!-- Fisiopatología del Error -->
-            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 mb-4 space-y-2 text-xs">
-                <div class="font-bold text-amber-400 uppercase tracking-wide">ANÁLISIS DEL INTERNO DOCENTE:</div>
-                <div id="modal-critique" class="text-slate-300 font-sans leading-normal">
-                    - Administraste Terlipresina en un paciente no cirrótico con úlcera inducida por AINEs, generando isquemia coronaria innecesaria.<br>
-                    - No lograste elevar el pH gástrico por encima de 6.0 antes de intentar la hemostasia mecánica, por lo que la pepsina disolvió la agregación plaquetaria.
-                </div>
-            </div>
-
-            <div class="flex items-center justify-between pt-2">
-                <div>
-                    <span class="text-xs text-slate-500">Puntaje Final:</span>
-                    <span id="final-score" class="text-lg font-bold text-cyan-400 ml-1">0 PTS</span>
-                </div>
-                <button onclick="resetGame()" class="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition tracking-wider">
-                    JUGAR DE NUEVO
-                </button>
-            </div>
+            <div class="text-[11px] text-slate-400 font-mono-tech">HOSPITAL DR. SÓTERO DEL RÍO - TURNO URGENCIA</div>
         </div>
     </div>
 
-    <!-- Lógica del Motor de Juego (Vanilla JS) -->
-    <script>
-        /* ================= ESTADO CLÍNICO GLOBAL ================= */
-        let state = {
-            active: true,
-            timeSec: 0,
-            score: 0,
-            
-            // Hemodinamia
-            pas: 82,
-            pad: 46,
-            pam: 58,
-            hr: 124,
-            spo2: 93,
-            hb: 6.4,
-            ph: 2.2,
+    <!-- Panel de Objetivos de Salida a UPC (Condiciones de Victoria) -->
+    <div class="bg-slate-950 border border-slate-800 rounded-lg px-4 py-1.5 flex items-center gap-4 text-xs font-mono-tech">
+        <span class="text-slate-400 font-bold uppercase tracking-wider text-[10px]">METAS DE ESTABILIZACIÓN:</span>
+        <div id="obj-hemostasia" class="text-red-400 flex items-center gap-1">❌ Hemostasia EDA</div>
+        <div id="obj-pam" class="text-red-400 flex items-center gap-1">❌ PAM ≥65</div>
+        <div id="obj-hb" class="text-red-400 flex items-center gap-1">❌ Hb 7.0-8.0</div>
+        <div id="obj-spo2" class="text-red-400 flex items-center gap-1">❌ SatO2 ≥92%</div>
+        <div id="obj-ph" class="text-red-400 flex items-center gap-1">❌ pH ≥6.0</div>
+    </div>
 
-            // Variables de Entorno y Manejo
-            intubated: false,
-            fluidsGivenCount: 0,
-            unitsTransfused: 0,
-            omeprazoleActive: false,
-            erythromycinActive: false,
-            terlipressinActive: false,
-            ceftriaxoneGiven: false,
-            clipped: false,
-            stomachBloodLevel: 65, // %
-            bleedingSeverity: 2.5, // Velocidad de sangrado activa
-            clotStability: 10,     // 0 a 100%
-            
-            // Fisiopatología del Paciente (Generación Procedural: Úlcera por AINEs vs Várices)
-            etiology: 'ulcer', // 'ulcer' o 'variceal'
-        };
+    <div class="flex items-center gap-5 font-mono-tech">
+        <div class="text-right">
+            <div class="text-[10px] text-slate-400">TIEMPO VIVO</div>
+            <div id="game-timer" class="text-base font-bold text-emerald-400">00:00</div>
+        </div>
+        <div class="text-right">
+            <div class="text-[10px] text-slate-400">SCORE CLÍNICO</div>
+            <div id="score-display" class="text-base font-bold text-cyan-400">100 PTS</div>
+        </div>
+    </div>
+</header>
 
-        let gameInterval = null;
+<!-- Main Game Frame -->
+<main class="flex-1 grid grid-cols-12 gap-3.5 p-3.5 overflow-hidden">
 
-        /* ================= INICIO Y BUCLE PRINCIPAL ================= */
-        function initGame() {
-            state.active = true;
-            state.timeSec = 0;
-            state.score = 100;
-            state.pas = 82;
-            state.pad = 46;
-            state.pam = Math.round((state.pas + 2 * state.pad) / 3);
-            state.hr = 124;
-            state.spo2 = 93;
-            state.hb = 6.4;
-            state.ph = 2.2;
-            state.intubated = false;
-            state.fluidsGivenCount = 0;
-            state.unitsTransfused = 0;
-            state.omeprazoleActive = false;
-            state.erythromycinActive = false;
-            state.terlipressinActive = false;
-            state.ceftriaxoneGiven = false;
-            state.clipped = false;
-            state.stomachBloodLevel = 65;
-            state.bleedingSeverity = 2.5;
-            state.clotStability = 10;
-            
-            // 60% de los casos úlcera por AINEs, 40% várices
-            state.etiology = Math.random() > 0.4 ? 'ulcer' : 'variceal';
-            setupPatientCase();
+    <!-- Columna Izquierda: Monitor Hemodinámico Fisiopatológico en Tiempo Real -->
+    <section class="col-span-3 bg-slate-900/95 rounded-xl border border-slate-800 p-3.5 flex flex-col justify-between shadow-2xl relative">
+        <div>
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-2.5">
+                <span class="text-xs uppercase font-bold tracking-wider text-slate-400 font-mono-tech">MONITOR MULTIPARÁMETRO</span>
+                <span id="patient-banner" class="text-[11px] bg-red-950/80 text-red-300 border border-red-700/60 px-2 py-0.5 rounded font-mono-tech">CARGANDO CASO...</span>
+            </div>
 
-            document.getElementById('modal-gameover').classList.add('hidden');
-            document.getElementById('applied-clips').innerHTML = '';
-            document.getElementById('console-log').innerHTML = '';
-            
-            log(`[00:00] Ingreso: Paciente en SHOCK hipovolémico. Sospecha de HDA activa. Glasgow-Blatchford de alto riesgo.`);
-            
-            clearInterval(gameInterval);
-            gameInterval = setInterval(gameTick, 1000);
-            updateUI();
-        }
-
-        function setupPatientCase() {
-            if (state.etiology === 'ulcer') {
-                document.getElementById('patient-id').textContent = "DON CARLOS (63a) - ÚLCERA";
-                document.getElementById('hint-nsaid').textContent = "Naproxeno + Ketorolaco (+) habitual";
-                document.getElementById('hint-dhc').textContent = "Ausentes / Hígado indemne";
-                document.getElementById('hint-bun').textContent = "62 / 1.1 (Ratio > 30:1 alto)";
-            } else {
-                document.getElementById('patient-id').textContent = "DON ERNESTO (58a) - DHC";
-                document.getElementById('hint-nsaid').textContent = "Niega uso de analgésicos";
-                document.getElementById('hint-dhc').textContent = "Ascitis leve, Telangiectasias, Plaquetas 48k";
-                document.getElementById('hint-bun').textContent = "48 / 1.3 (Disfunción hepatorrenal)";
-            }
-        }
-
-        /* ================= TICK DEL JUEGO (CADA SEGUNDO) ================= */
-        function gameTick() {
-            if (!state.active) return;
-            state.timeSec++;
-
-            // 1. Dinámica de Sangrado y Estabilidad
-            if (!state.clipped) {
-                // Sangrado activo continua llenando el estómago
-                state.stomachBloodLevel = Math.min(100, state.stomachBloodLevel + state.bleedingSeverity);
+            <!-- Signos Vitales y Variables Homeostáticas -->
+            <div class="space-y-2.5 font-mono-tech text-xs">
                 
-                // Pérdida sostenida de volumen y glóbulos rojos
-                state.hb = Math.max(3.0, +(state.hb - 0.04).toFixed(2));
-                state.pas = Math.max(40, state.pas - 1);
-                state.pad = Math.max(25, state.pad - 0.5);
-                state.hr = Math.min(160, state.hr + 1);
-            } else {
-                // Hemostasia lograda: reabsorción o vaciamiento paulatino
-                state.stomachBloodLevel = Math.max(10, state.stomachBloodLevel - 1.5);
-            }
+                <!-- Presión Arterial -->
+                <div id="card-bp" class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+                    <div class="text-slate-400 flex justify-between text-[11px]">
+                        <span>PA / PAM (Meta ≥65)</span>
+                        <span id="pam-val" class="font-bold text-amber-400">PAM 56 mmHg</span>
+                    </div>
+                    <div class="text-2xl font-black flex items-baseline gap-1 mt-0.5">
+                        <span id="pas-val" class="text-red-400 text-3xl">80</span>
+                        <span class="text-slate-600 text-xl">/</span>
+                        <span id="pad-val" class="text-red-400 text-2xl">44</span>
+                        <span class="text-[10px] text-slate-500 font-sans ml-1">mmHg</span>
+                    </div>
+                </div>
 
-            // 2. Efecto de la Secreción Ácida y Pepsina sobre el Coágulo
-            if (state.ph < 6.0) {
-                // A pH ácido la agregación plaquetaria es disuelta
-                state.clotStability = Math.max(0, state.clotStability - 3);
-            } else {
-                state.clotStability = Math.min(100, state.clotStability + 2);
-            }
+                <!-- Frecuencia Cardíaca -->
+                <div class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+                    <div class="text-slate-400 flex justify-between text-[11px]">
+                        <span>FC (Taquicardia refleja)</span>
+                        <span class="text-slate-500">lpm</span>
+                    </div>
+                    <div class="text-2xl font-black text-emerald-400 mt-0.5" id="hr-display">128</div>
+                </div>
 
-            // 3. Ventana de Hematemesis Masiva y Vía Aérea
-            if (state.stomachBloodLevel >= 90) {
-                triggerHematemesisAlert();
-                if (!state.intubated) {
-                    state.spo2 = Math.max(50, state.spo2 - 6);
-                    if (state.spo2 < 70) {
-                        endGame(false, "PARO RESPIRATORIO POR BRONCOASPIRACIÓN", 
-                        "El estómago sobrepasó el volumen de tolerancia y el paciente vomitó profusamente sin protección de vía aérea. Debiste intubar (IOT) precozmente ante el sangrado activo incontrolado.");
-                        return;
-                    }
-                }
-            } else {
-                if (state.intubated) {
-                    state.spo2 = Math.min(99, state.spo2 + 1);
-                }
-            }
+                <!-- Saturación O2 y Estado de la Vía Aérea -->
+                <div id="card-airway" class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+                    <div class="text-slate-400 flex justify-between text-[11px]">
+                        <span>SatO2 & RESPIRATORIO</span>
+                        <span id="airway-label" class="text-rose-400 font-bold">AIRE AMBIENTE</span>
+                    </div>
+                    <div class="flex items-baseline justify-between mt-0.5">
+                        <span class="text-2xl font-black text-cyan-400" id="spo2-display">89%</span>
+                        <span id="airway-sub" class="text-[10px] text-amber-400 font-sans">Hipoxemia activa</span>
+                    </div>
+                </div>
 
-            // 4. Cálculo de PAM
-            state.pam = Math.round((state.pas + 2 * state.pad) / 3);
+                <!-- Hemoglobina Dinámica y Umbral Baveno VII -->
+                <div id="card-hb" class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+                    <div class="text-slate-400 flex justify-between text-[11px]">
+                        <span>HEMOGLOBINA (Restrictiva &lt;7.0)</span>
+                        <span class="text-slate-500">g/dL</span>
+                    </div>
+                    <div class="flex items-baseline justify-between mt-0.5">
+                        <span class="text-2xl font-black text-rose-500" id="hb-display">6.3</span>
+                        <span class="text-[10px] text-slate-400 font-sans" id="bleeding-rate-label">Caída: -0.06 g/dL/s</span>
+                    </div>
+                </div>
 
-            // 5. Criterios de Shock Irreversible y Muerte
-            if (state.hb < 4.5 || state.pam < 45) {
-                endGame(false, "SHOCK HIPOVOLÉMICO IRREVERSIBLE", 
-                "El volumen intravascular efectivo cayó por debajo de los límites viables de perfusión coronaria y cerebral. Faltó reanimación con bolos medidos de cristaloides o transfusión restrictiva oportuna.");
-                return;
-            }
+                <!-- pH Intragástrico y Lisis de Pepsina -->
+                <div class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+                    <div class="text-slate-400 flex justify-between text-[11px]">
+                        <span>pH GÁSTRICO (Inactivar pepsina ≥6.0)</span>
+                        <span id="ph-state-label" class="text-red-400 font-bold text-[10px]">LISIS TROMBO</span>
+                    </div>
+                    <div class="text-2xl font-black text-amber-300 mt-0.5" id="ph-display">2.0</div>
+                </div>
 
-            // 6. Criterio de Victoria / Estabilización Exitosa
-            if (state.clipped && state.pam >= 65 && state.hb >= 7.0 && state.ph >= 6.0 && state.stomachBloodLevel < 35) {
-                state.score += 250;
-                endGame(true, "¡PACIENTE ESTABILIZADO CON ÉXITO!", 
-                `Excelente enfrentamiento. Lograste hemostasia combinada definitiva, mantuviste el pH gástrico ≥6.0 para proteger el trombo primario, reanimaste con estrategia restrictiva sin sobrecargar al paciente y protegiste la vía aérea.`);
-                return;
-            }
+                <!-- Tono Esplácnico / Terlipresina Effect -->
+                <div class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+                    <div class="text-slate-400 flex justify-between text-[11px]">
+                        <span>VASOCONSTRICCIÓN ESPLÁCNICA</span>
+                        <span id="terli-status" class="text-slate-500">INACTIVA</span>
+                    </div>
+                    <div class="text-[11px] text-slate-300 mt-0.5 flex justify-between">
+                        <span>Flujo sangrado:</span>
+                        <span id="splachnic-flow" class="text-rose-400 font-bold">100% (Máximo)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-            updateUI();
+        <!-- Ficha Clínica Rápida (Pistas del Expediente) -->
+        <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 font-mono-tech text-[11px] space-y-1">
+            <div class="text-slate-400 font-bold border-b border-slate-800 pb-0.5 flex justify-between">
+                <span>ANAMNESIS & LABORATORIO</span>
+                <span id="blatchford-badge" class="text-amber-400">GBS: 13 pts</span>
+            </div>
+            <div class="text-slate-300 flex justify-between">
+                <span>Antecedentes:</span> <span id="hint-hx" class="text-amber-400 font-bold">Naproxeno + Ketorolaco habitual</span>
+            </div>
+            <div class="text-slate-300 flex justify-between">
+                <span>Estigmas DHC:</span> <span id="hint-dhc" class="text-emerald-400 font-bold">Ausentes (Hígado sano)</span>
+            </div>
+            <div class="text-slate-300 flex justify-between">
+                <span>BUN / Creatinina:</span> <span id="hint-bun" class="text-purple-400 font-bold">58 / 1.1 (Ratio 52:1 HDA)</span>
+            </div>
+            <div class="text-slate-300 flex justify-between">
+                <span>Recuento Plaquetario:</span> <span id="hint-plq" class="text-cyan-400 font-bold">240.000 /uL</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Columna Central: Simulador Endoscópico Interactivo (Action Arena) -->
+    <section id="game-arena" class="col-span-6 bg-slate-900 rounded-xl border border-slate-800 p-3.5 flex flex-col justify-between shadow-2xl relative overflow-hidden">
+        
+        <!-- Barra Superior del Procedimiento Endoscópico -->
+        <div class="flex items-center justify-between z-10">
+            <div class="flex items-center gap-2 font-mono-tech">
+                <span class="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-300">CANAL EDA</span>
+                <span id="stigma-badge" class="text-xs font-bold bg-red-600 text-white px-2 py-0.5 rounded animate-pulse">SANGRADO EN CHORRO (Forrest Ia)</span>
+            </div>
+            <div class="text-xs font-mono-tech text-slate-300">
+                VISIBILIDAD EDA: <span id="visibility-label" class="font-bold text-rose-400">25% (Inundado)</span>
+            </div>
+        </div>
+
+        <!-- Visor del Tubo Digestivo y Órgano Interactivo -->
+        <div class="relative w-full h-80 my-auto rounded-lg bg-slate-950 border border-slate-800 overflow-hidden flex items-center justify-center">
+            
+            <!-- Lago Hemático Intraluminal Dinámico -->
+            <div id="blood-pool" class="absolute bottom-0 left-0 w-full bg-gradient-to-t from-red-950 via-red-900/85 to-transparent fluid-level pointer-events-none" style="height: 65%;"></div>
+
+            <!-- Campo Quirúrgico de la Lesión -->
+            <div class="relative z-10 flex flex-col items-center">
+                
+                <!-- Diana anatómica (Úlcera Péptica o Várice Esofágica) -->
+                <div id="target-site" class="w-36 h-36 rounded-full border-4 border-red-800 bg-red-950/80 flex items-center justify-center relative shadow-inner cursor-pointer group transition hover:scale-105">
+                    
+                    <!-- Chorro de Sangre Activo -->
+                    <div id="bleeding-jet" class="w-3 h-20 bg-rose-500 rounded-full blur-[1px] absolute -top-10 animate-bounce"></div>
+                    
+                    <!-- Lesión Central (Vaso Erosionado o Cordón Varicoso) -->
+                    <div id="target-lesion" class="w-12 h-12 rounded-full bg-rose-700 border-2 border-red-300 flex items-center justify-center font-mono-tech text-[10px] font-bold text-white shadow-2xl text-center leading-tight">
+                        VASO IA
+                    </div>
+
+                    <!-- Indicadores de Instrumental Aplicado -->
+                    <div id="adrenalin-halo" class="absolute inset-0 rounded-full border-4 border-yellow-400/80 animate-ping hidden pointer-events-none"></div>
+                    <div id="applied-tools" class="absolute inset-0 flex items-center justify-center pointer-events-none"></div>
+                </div>
+
+                <!-- Instrucción Dinámica del Campo -->
+                <div id="arena-guide" class="mt-3 font-mono-tech text-xs bg-slate-950/90 px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 text-center max-w-sm">
+                    Visibilidad crítica por sangre acumulada. Aplica procinético o aspira para enfocar el instrumental.
+                </div>
+            </div>
+
+            <!-- Overlay de Alerta por Broncoaspiración / Hematemesis Masiva -->
+            <div id="vomit-screen" class="absolute inset-0 bg-red-900/90 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200 z-30">
+                <div class="text-center font-mono-tech p-4">
+                    <div class="text-3xl font-black text-white tracking-widest uppercase">¡HEMATEMESIS MASIVA EN BOX!</div>
+                    <div class="text-sm text-red-200 mt-1">Lumen desbordado (&gt;90%). Broncoaspiración aguda.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bandeja de Instrumental Endoscópico Seleccionable -->
+        <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 z-10">
+            <div class="text-[11px] font-mono-tech text-slate-400 font-bold mb-1.5 flex justify-between">
+                <span>INSTRUMENTAL ENDOSCÓPICO ACTIVO:</span>
+                <span id="selected-tool-name" class="text-cyan-400 uppercase">NINGUNO SELECCIONADO</span>
+            </div>
+            <div class="grid grid-cols-4 gap-2 font-mono-tech text-xs">
+                <button onclick="selectTool('suction')" id="tool-suction" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 py-1.5 px-2 rounded flex flex-col items-center">
+                    <span class="font-bold text-slate-200">ASPIRACIÓN</span>
+                    <span class="text-[9px] text-slate-400">Limpiar lumen</span>
+                </button>
+                <button onclick="selectTool('adrenalin')" id="tool-adrenalin" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 py-1.5 px-2 rounded flex flex-col items-center">
+                    <span class="font-bold text-slate-200">ADRENALINA</span>
+                    <span class="text-[9px] text-slate-400">1:10.000 Inyec.</span>
+                </button>
+                <button onclick="selectTool('clip')" id="tool-clip" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 py-1.5 px-2 rounded flex flex-col items-center">
+                    <span class="font-bold text-slate-200">ENDOCLIP</span>
+                    <span class="text-[9px] text-slate-400">Mecánico (Úlcera)</span>
+                </button>
+                <button onclick="selectTool('band')" id="tool-band" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 py-1.5 px-2 rounded flex flex-col items-center">
+                    <span class="font-bold text-slate-200">LIGADURA</span>
+                    <span class="text-[9px] text-slate-400">Bandas (Várice)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Consola de Retroalimentación Médica y Eventos -->
+        <div class="bg-slate-950 rounded-lg p-2.5 border border-slate-800 h-24 overflow-y-auto font-mono-tech text-xs space-y-1 mt-2.5" id="game-feed">
+            <!-- Se inyectan logs dinámicos -->
+        </div>
+    </section>
+
+    <!-- Columna Derecha: Consola de Reanimación Médica y Farmacología -->
+    <section class="col-span-3 bg-slate-900/95 rounded-xl border border-slate-800 p-3.5 flex flex-col justify-between shadow-2xl">
+        <div>
+            <div class="border-b border-slate-800 pb-2 mb-2.5">
+                <span class="text-xs uppercase font-bold tracking-wider text-slate-400 font-mono-tech">MANEJO MÉDICO & REANIMACIÓN</span>
+            </div>
+
+            <div class="space-y-2 font-mono-tech text-xs">
+                
+                <!-- 1. Vía Aérea Escalonada: O2 Titulado -->
+                <div class="bg-slate-950 p-2 rounded-lg border border-slate-800 space-y-1.5">
+                    <div class="text-[11px] text-slate-400 font-bold flex justify-between">
+                        <span>SOPORTE VENTILATORIO</span>
+                        <span class="text-cyan-400">Meta: SatO2 ≥92%</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <button onclick="actionOxygen()" class="bg-slate-800 hover:bg-cyan-950 border border-slate-700 hover:border-cyan-500 py-1.5 rounded transition text-left px-2">
+                            <span class="font-bold block text-slate-200">[1] O2 Titulado</span>
+                            <span class="text-[9px] text-slate-400">Cánula/Venturi</span>
+                        </button>
+                        <button onclick="actionIntubate()" class="bg-slate-800 hover:bg-rose-950 border border-slate-700 hover:border-rose-500 py-1.5 rounded transition text-left px-2">
+                            <span class="font-bold block text-slate-200">[2] IOT Vía Aérea</span>
+                            <span class="text-[9px] text-slate-400">GCS≤8 / Masivo</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 2. Cristaloides -->
+                <button onclick="actionFluids()" class="w-full bg-slate-800 hover:bg-blue-950 border border-slate-700 hover:border-blue-500 p-2 rounded-lg flex items-center justify-between transition group">
+                    <div class="text-left">
+                        <span class="font-bold text-slate-200 group-hover:text-blue-400">[3] Bolo SF 0.9% 500cc</span>
+                        <span class="text-[10px] text-slate-400 block">Titular a PAM ≥ 65 mmHg</span>
+                    </div>
+                    <span class="text-[10px] bg-slate-900 text-blue-300 px-1.5 py-0.5 rounded border border-blue-900">Volemizar</span>
+                </button>
+
+                <!-- 3. Transfusión Restrictiva Villanueva/Baveno -->
+                <button onclick="actionTransfusion()" class="w-full bg-slate-800 hover:bg-red-950 border border-slate-700 hover:border-red-500 p-2 rounded-lg flex items-center justify-between transition group">
+                    <div class="text-left">
+                        <span class="font-bold text-slate-200 group-hover:text-red-400">[4] Transfundir 1U GR</span>
+                        <span class="text-[10px] text-slate-400 block">Gatillo estricto &lt; 7.0 g/dL</span>
+                    </div>
+                    <span class="text-[10px] bg-slate-900 text-rose-300 px-1.5 py-0.5 rounded border border-rose-900">Restrictivo</span>
+                </button>
+
+                <!-- 4. IBP en Altas Dosis -->
+                <button onclick="actionOmeprazole()" class="w-full bg-slate-800 hover:bg-amber-950 border border-slate-700 hover:border-amber-500 p-2 rounded-lg flex items-center justify-between transition group">
+                    <div class="text-left">
+                        <span class="font-bold text-slate-200 group-hover:text-amber-400">[5] Omeprazol 80mg EV</span>
+                        <span class="text-[10px] text-slate-400 block">Elevar pH &gt; 6.0 (Inhibe pepsina)</span>
+                    </div>
+                    <span class="text-[10px] bg-slate-900 text-amber-300 px-1.5 py-0.5 rounded border border-amber-900">IBP Bolo</span>
+                </button>
+
+                <!-- 5. Eritromicina Pre-EDA -->
+                <button onclick="actionErythromycin()" class="w-full bg-slate-800 hover:bg-purple-950 border border-slate-700 hover:border-purple-500 p-2 rounded-lg flex items-center justify-between transition group">
+                    <div class="text-left">
+                        <span class="font-bold text-slate-200 group-hover:text-purple-400">[6] Eritromicina 250mg EV</span>
+                        <span class="text-[10px] text-slate-400 block">Procinético 30-60 min pre-EDA</span>
+                    </div>
+                    <span class="text-[10px] bg-slate-900 text-purple-300 px-1.5 py-0.5 rounded border border-purple-900">Limpieza</span>
+                </button>
+
+                <!-- 6. Vasoactivo: Terlipresina -->
+                <button onclick="actionTerlipressin()" class="w-full bg-slate-800 hover:bg-rose-950 border border-slate-700 hover:border-rose-500 p-2 rounded-lg flex items-center justify-between transition group">
+                    <div class="text-left">
+                        <span class="font-bold text-slate-200 group-hover:text-rose-400">[7] Terlipresina 2mg EV</span>
+                        <span class="text-[10px] text-slate-400 block">Vasoconstrictor esplácnico V1</span>
+                    </div>
+                    <span class="text-[10px] bg-slate-900 text-rose-400 px-1.5 py-0.5 rounded border border-rose-900">Vasoactivo</span>
+                </button>
+
+                <!-- 7. Profilaxis Ceftriaxona -->
+                <button onclick="actionCeftriaxone()" class="w-full bg-slate-800 hover:bg-teal-950 border border-slate-700 hover:border-teal-500 p-2 rounded-lg flex items-center justify-between transition group">
+                    <div class="text-left">
+                        <span class="font-bold text-slate-200 group-hover:text-teal-400">[8] Ceftriaxona 1g EV</span>
+                        <span class="text-[10px] text-slate-400 block">Profilaxis PBE / Translocación</span>
+                    </div>
+                    <span class="text-[10px] bg-slate-900 text-teal-300 px-1.5 py-0.5 rounded border border-teal-900">Antibiótico</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Botón de Reinicio Inmediato -->
+        <div class="pt-2">
+            <button onclick="resetGame()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-mono-tech text-xs tracking-wider border border-slate-700 transition">
+                NUEVO ESCENARIO CLÍNICO (ESC)
+            </button>
+        </div>
+    </section>
+</main>
+
+<!-- Modal de Desenlace Clínico y Evaluación Docente -->
+<div id="modal-outcome" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-xl w-full p-6 shadow-2xl font-mono-tech">
+        <div id="outcome-title" class="text-2xl font-black mb-1.5 text-rose-500 uppercase tracking-wide">PACIENTE EN SHOCK REFRACTARIO</div>
+        <div id="outcome-subtitle" class="text-sm text-slate-300 mb-4 font-sans leading-relaxed">
+            El paciente no logró los objetivos mínimos de supervivencia y reanimación para traslado seguro a UPC.
+        </div>
+
+        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 mb-4 space-y-2.5 text-xs">
+            <div class="font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                <span>ANÁLISIS FISIOPATOLÓGICO Y DE MANEJO:</span>
+            </div>
+            <div id="outcome-critique" class="text-slate-300 font-sans leading-relaxed space-y-1.5">
+                <!-- Retroalimentación generada -->
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-2">
+            <div>
+                <span class="text-xs text-slate-400">Puntuación Final:</span>
+                <span id="final-score-val" class="text-xl font-black text-cyan-400 ml-1">0 PTS</span>
+            </div>
+            <button onclick="resetGame()" class="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition tracking-wider text-xs">
+                ENFRENTAR OTRO CASO
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Script del Motor Clínico -->
+<script>
+    /* ================= ESTADO CLÍNICO ================= */
+    let state = {
+        active: true,
+        timeSec: 0,
+        score: 100,
+
+        // Etiología del caso
+        etiology: 'ulcer', // 'ulcer' (No variceal por AINEs) o 'variceal' (DHC por alcohol/HTP)
+        
+        // Hemodinamia
+        pas: 80,
+        pad: 44,
+        pam: 56,
+        hr: 128,
+        spo2: 89,
+        hb: 6.3,
+        ph: 2.0,
+
+        // Parámetros respiratorios
+        oxygenApplied: false, // O2 por cánula/venturi
+        intubated: false,     // Tubo orotraqueal definitivo
+
+        // Fisiopatología Esplácnica y Sangrado
+        stomachBlood: 65,      // Volumen gástrico ocupado (0 - 100%)
+        baseBleedRate: 0.05,   // Pérdida basal de Hb g/dL por segundo
+        terlipressinGiven: false,
+        terlipressinTimer: 0,
+        portalFlowFactor: 1.0, // Multiplicador de flujo esplácnico (1.0 = normal, 0.45 = bajo efecto terlipresina)
+
+        // Farmacología y Preparación
+        omeprazoleGiven: false,
+        erythromycinGiven: false,
+        ceftriaxoneGiven: false,
+        fluidsCount: 0,
+        transfusionsCount: 0,
+
+        // Endoscopía Dinámica
+        selectedTool: null,    // 'suction', 'adrenalin', 'clip', 'band'
+        adrenalinInjected: false,
+        hemostasisDone: false, // Mecánica definitiva lograda (clip o ligadura)
+        bleedStatus: 'jet',    // 'jet' (Ia), 'ooze' (Ib), 'stopped' (III)
+    };
+
+    let loopInterval = null;
+
+    /* ================= INICIALIZACIÓN ================= */
+    function initGame() {
+        state.active = true;
+        state.timeSec = 0;
+        state.score = 100;
+
+        // Selección Procedural de Caso Clínico
+        state.etiology = Math.random() > 0.45 ? 'ulcer' : 'variceal';
+
+        // Parámetros iniciales
+        state.pas = 82;
+        state.pad = 46;
+        state.pam = Math.round((state.pas + 2 * state.pad) / 3);
+        state.hr = 126;
+        state.spo2 = 89;
+        state.hb = 6.4;
+        state.ph = 2.1;
+
+        state.oxygenApplied = false;
+        state.intubated = false;
+        state.stomachBlood = 60;
+        state.baseBleedRate = 0.045;
+        state.terlipressinGiven = false;
+        state.terlipressinTimer = 0;
+        state.portalFlowFactor = 1.0;
+
+        state.omeprazoleGiven = false;
+        state.erythromycinGiven = false;
+        state.ceftriaxoneGiven = false;
+        state.fluidsCount = 0;
+        state.transfusionsCount = 0;
+
+        state.selectedTool = null;
+        state.adrenalinInjected = false;
+        state.hemostasisDone = false;
+        state.bleedStatus = 'jet';
+
+        // Reset UI
+        document.getElementById('modal-outcome').classList.add('hidden');
+        document.getElementById('applied-tools').innerHTML = '';
+        document.getElementById('adrenalin-halo').classList.add('hidden');
+        document.getElementById('game-feed').innerHTML = '';
+        unhighlightTools();
+
+        configurePatientProfile();
+
+        log(`[00:00] Paciente ingresa en SHOCK hemorrágico con hematemesis activa y melena.`);
+        log(`[00:00] PRIORIDAD ABCDE: Estabilizar hemodinamia, oxigenación y preparar endoscopía.`);
+
+        clearInterval(loopInterval);
+        loopInterval = setInterval(simulationTick, 1000);
+        updateDashboard();
+    }
+
+    function configurePatientProfile() {
+        const banner = document.getElementById('patient-banner');
+        const hx = document.getElementById('hint-hx');
+        const dhc = document.getElementById('hint-dhc');
+        const bun = document.getElementById('hint-bun');
+        const plq = document.getElementById('hint-plq');
+        const gbs = document.getElementById('blatchford-badge');
+        const lesion = document.getElementById('target-lesion');
+
+        if (state.etiology === 'ulcer') {
+            banner.textContent = "CASO: DON CARLOS (63a) - ÚLCERA GÁSTRICA";
+            banner.className = "text-[11px] bg-amber-950/80 text-amber-300 border border-amber-700/60 px-2 py-0.5 rounded font-mono-tech";
+            hx.textContent = "Naproxeno 500mg + Ketorolaco habitual por gonartrosis";
+            dhc.textContent = "Sin estigmas de cirrosis ni hábito alcohólico";
+            bun.textContent = "58 / 1.1 (Ratio 52:1 - Sangre digerida alta)";
+            plq.textContent = "248.000 /uL (Médula e hígado normales)";
+            gbs.textContent = "GBS: 12 pts (Alto Riesgo)";
+            lesion.textContent = "ÚLCERA IA";
+            document.getElementById('target-site').title = "Vaso visible arterial en fondo gástrico";
+        } else {
+            banner.textContent = "CASO: DON ERNESTO (58a) - SOSPECHA VARICEAL";
+            banner.className = "text-[11px] bg-red-950/80 text-red-300 border border-red-700/60 px-2 py-0.5 rounded font-mono-tech";
+            hx.textContent = "Consumo problemático de alcohol crónico activo";
+            dhc.textContent = "Telangiectasias, ascitis leve, eritema palmar";
+            bun.textContent = "52 / 1.3 (Disfunción hepatorrenal asociada)";
+            plq.textContent = "54.000 /uL (Trombocitopenia por hiperesplenismo)";
+            gbs.textContent = "GBS: 14 pts (Riesgo Crítico)";
+            lesion.textContent = "VÁRICE ES";
+            document.getElementById('target-site').title = "Cordón varicoso esofágico sangrante";
+        }
+    }
+
+    /* ================= BUCLE DE SIMULACIÓN (1 SEGUNDO) ================= */
+    function simulationTick() {
+        if (!state.active) return;
+        state.timeSec++;
+
+        // 1. Dinámica de Sangrado y Pérdida de Hemoglobina
+        if (!state.hemostasisDone) {
+            // Caída de Hb ponderada por vasoconstricción esplácnica si hay terlipresina
+            let effectiveBleed = state.baseBleedRate * state.portalFlowFactor;
+            state.hb = Math.max(2.8, +(state.hb - effectiveBleed).toFixed(3));
+
+            // Llenado gástrico
+            let poolIncrease = (state.bleedStatus === 'jet' ? 2.2 : 0.9) * state.portalFlowFactor;
+            state.stomachBlood = Math.min(100, state.stomachBlood + poolIncrease);
+
+            // Deterioro hemodinámico adaptativo
+            state.pas = Math.max(38, state.pas - 0.7);
+            state.pad = Math.max(22, state.pad - 0.4);
+            state.hr = Math.min(165, state.hr + 0.8);
+        } else {
+            // Tras hemostasia, se evacua gradualmente el pool
+            state.stomachBlood = Math.max(5, state.stomachBlood - 1.2);
         }
 
-        /* ================= ACCIONES CLÍNICAS ================= */
+        // 2. Fisiopatología del pH y Estabilidad del Coágulo (Pepsina)
+        if (state.ph < 6.0) {
+            // A pH ácido, la fibrina y agregación plaquetaria son disueltas por la pepsina
+            if (state.bleedStatus === 'ooze' && !state.hemostasisDone) {
+                // Resangrado o aceleración
+                state.bleedStatus = 'jet';
+            }
+        }
 
-        // [1] Intubación Orotraqueal
-        function actionIntubate() {
-            if (!state.active) return;
+        // 3. Ventilación y Riesgo de Broncoaspiración
+        if (state.stomachBlood >= 90) {
+            triggerHematemesisVisual();
+            if (!state.intubated) {
+                state.spo2 = Math.max(45, state.spo2 - 5.5);
+                if (state.spo2 < 65) {
+                    finishGame(false, "PARO RESPIRATORIO POR BRONCOASPIRACIÓN", [
+                        "El volumen gástrico acumulado sobrepasó el 90%, provocando una hematemesis masiva violenta.",
+                        "El paciente no contaba con intubación orotraqueal (IOT) para aislar la vía aérea de la inundación hemática.",
+                        "Regla clínica: Ante sangrado incoercible o compromiso de conciencia, la IOT protege la vida antes de que ocurra la asfixia."
+                    ]);
+                    return;
+                }
+            }
+        } else {
+            // Recuperación gradual de SatO2 si se aplica soporte
             if (state.intubated) {
-                log(`[${timeStr()}] Advertencia: El paciente ya está intubado con TOT fijado.`);
-                return;
-            }
-            state.intubated = true;
-            state.score += 20;
-            log(`[${timeStr()}] IOT realizada con éxito. Vía aérea protegida contra aspiración.`);
-            updateUI();
-        }
-
-        // [2] Cristaloides (SF 0.9%)
-        function actionFluids() {
-            if (!state.active) return;
-            state.fluidsGivenCount++;
-            
-            // Fisiopatología de fluidos: Reanima si está en shock, pero sobrecarga daña si se abusa
-            if (state.pam < 65) {
-                state.pas += 8;
-                state.pad += 4;
-                state.hr = Math.max(90, state.hr - 6);
-                state.score += 15;
-                log(`[${timeStr()}] Bolo SF 0.9% 500cc infundido. PAM mejorada hacia meta.`);
+                state.spo2 = Math.min(99, state.spo2 + 1.2);
+            } else if (state.oxygenApplied) {
+                state.spo2 = Math.min(94, state.spo2 + 0.8);
             } else {
-                // Sobreexpansión perjudicial: hemodilución y aumento de presión de rotura
-                state.hb = +(state.hb - 0.3).toFixed(2);
-                state.score -= 20;
-                log(`[${timeStr()}] PELIGRO: Sobrehidratación en paciente sin hipotensión grave. Hemodilución inducida y lavado de factores.`);
-                if (state.etiology === 'variceal') {
-                    state.bleedingSeverity += 0.5;
-                    log(`[${timeStr()}] Aumento de presión portal hidrostática: sangrado variceal intensificado.`);
-                }
+                // Sin oxígeno complementario, la hipoxemia persiste por hipoperfusión
+                state.spo2 = Math.max(78, state.spo2 - 0.3);
             }
-            updateUI();
         }
 
-        // [3] Transfusión de Glóbulos Rojos
-        function actionTransfuse() {
-            if (!state.active) return;
-            
-            // Estrategia Restrictiva (Villanueva et al.): Gatillo <7.0, Meta 7-8
-            if (state.hb < 7.0) {
-                state.hb = +(state.hb + 1.0).toFixed(2);
-                state.pas += 5;
-                state.unitsTransfused++;
-                state.score += 30;
-                log(`[${timeStr()}] Transfusión 1U GR correcta (Gatillo <7.0 cumplido). Hb actual: ${state.hb} g/dL.`);
-            } else {
-                // Sobretransfusión (Estrategia liberal perjudicial)
-                state.hb = +(state.hb + 1.0).toFixed(2);
-                state.score -= 40;
-                log(`[${timeStr()}] ERROR TÁCTICO: Sobretransfusión con Hb ≥ 7.0. ↑ Resangrado por aumento de presión e hiperviscosidad.`);
-                if (state.etiology === 'variceal') {
-                    state.bleedingSeverity += 1.0;
-                }
+        // 4. Efecto temporal de Terlipresina (Vida media y monitorización)
+        if (state.terlipressinGiven) {
+            state.terlipressinTimer++;
+            // La terlipresina eleva la poscarga sistémica (alza leve de PA) pero reduce el sangrado variceal
+            if (state.terlipressinTimer > 180) { // Dura 3 minutos de juego
+                state.terlipressinGiven = false;
+                state.portalFlowFactor = 1.0;
+                log(`[${formatTimer()}] Fin del efecto del bolo de Terlipresina. Retorno de presiones portales basales.`);
             }
-            updateUI();
         }
 
-        // [4] Omeprazol en Altas Dosis
-        function actionOmeprazole() {
-            if (!state.active) return;
-            if (state.omeprazoleActive) {
-                log(`[${timeStr()}] Omeprazol ya se encuentra en infusión continua.`);
-                return;
-            }
-            state.omeprazoleActive = true;
-            state.ph = 6.4;
-            state.score += 25;
-            log(`[${timeStr()}] Bolo Omeprazol 80mg EV infundido. pH gástrico elevado a ${state.ph}. Pepsina inactivada.`);
-            updateUI();
+        // 5. Cálculo estricto de Presión Arterial Media (PAM)
+        state.pam = Math.round((state.pas + 2 * state.pad) / 3);
+
+        // 6. Criterios de Colapso Hemodinámico Irreversible
+        if (state.hb < 4.2 || state.pam < 45) {
+            finishGame(false, "SHOCK HIPOVOLÉMICO DESCOMPENSADO (EXITUS)", [
+                `El paciente cayó en paro cardíaco por hipoperfusión coronaria y tisular extrema (PAM: ${state.pam} mmHg, Hb: ${state.hb.toFixed(1)} g/dL).`,
+                "Faltó reanimación volemica inmediata con cristaloides en bolos titulados o transfusión oportuna con glóbulos rojos.",
+                "La hipotensión refractaria no corregida antes o durante la EDA es una causa prevenible de muerte en box."
+            ]);
+            return;
         }
 
-        // [5] Eritromicina Pre-EDA
-        function actionErythromycin() {
-            if (!state.active) return;
-            if (state.erythromycinActive) {
-                log(`[${timeStr()}] Eritromicina ya administrada recientemente.`);
-                return;
-            }
-            state.erythromycinActive = true;
-            state.stomachBloodLevel = Math.max(10, state.stomachBloodLevel - 35);
+        // 7. Verificación de Criterios de Victoria (Traslado Exitoso a UPC)
+        checkVictoryConditions();
+
+        updateDashboard();
+    }
+
+    /* ================= EVALUACIÓN DE METAS CLÍNICAS (VICTORIA) ================= */
+    function checkVictoryConditions() {
+        const cHemostasia = state.hemostasisDone;
+        const cPam = state.pam >= 65;
+        const cHb = state.hb >= 7.0 && state.hb <= 8.5;
+        const cSpo2 = state.spo2 >= 92;
+        const cPh = state.ph >= 6.0;
+
+        // Actualizar tags del header
+        updateGoalBadge('obj-hemostasia', cHemostasia, "Hemostasia EDA");
+        updateGoalBadge('obj-pam', cPam, `PAM ≥65 (${state.pam})`);
+        updateGoalBadge('obj-hb', cHb, `Hb 7.0-8.0 (${state.hb.toFixed(1)})`);
+        updateGoalBadge('obj-spo2', cSpo2, `SatO2 ≥92% (${Math.round(state.spo2)}%)`);
+        updateGoalBadge('obj-ph', cPh, `pH ≥6.0 (${state.ph.toFixed(1)})`);
+
+        if (cHemostasia && cPam && cHb && cSpo2 && cPh && state.stomachBlood < 40) {
+            state.score += 200;
+            finishGame(true, "¡PACIENTE ESTABILIZADO Y TRASLADADO A UPC!", [
+                "Cumpliste con excelencia todas las metas de reanimación y hemostasia recomendadas por las guías clínicas.",
+                `Lograste hemostasia mecánica eficaz adaptada a la patología (${state.etiology === 'ulcer' ? 'Endoclip en úlcera péptica' : 'Ligadura elástica variceal'}).`,
+                "Mantuviste una estrategia transfusional restrictiva (Hb 7-8 g/dL), evitando el resangrado por sobrepresión.",
+                "El pH gástrico se mantuvo sobre 6.0, inhibiendo a la pepsina y garantizando la estabilidad del tapón plaquetario.",
+                "Vía aérea protegida y volumen titulado sin sobrecargar al paciente."
+            ]);
+        }
+    }
+
+    function updateGoalBadge(elementId, conditionMet, text) {
+        const el = document.getElementById(elementId);
+        if (conditionMet) {
+            el.className = "text-emerald-400 font-bold flex items-center gap-1";
+            el.innerHTML = `✓ ${text}`;
+        } else {
+            el.className = "text-red-400 font-bold flex items-center gap-1";
+            el.innerHTML = `❌ ${text}`;
+        }
+    }
+
+    /* ================= ACCIONES MÉDICAS (COLUMNA DERECHA) ================= */
+
+    // [1] Oxigenoterapia Escalonada
+    function actionOxygen() {
+        if (!state.active) return;
+        if (state.intubated) {
+            log(`[${formatTimer()}] Paciente ya intubado; oxigenación controlada por ventilador mecánico.`);
+            return;
+        }
+        state.oxygenApplied = true;
+        state.spo2 = Math.min(95, state.spo2 + 6);
+        state.score += 10;
+        log(`[${formatTimer()}] Oxigenoterapia por mascarilla/cánula instalada. SatO2 sube a ${Math.round(state.spo2)}%.`);
+        updateDashboard();
+    }
+
+    // [2] Intubación Orotraqueal (IOT)
+    function actionIntubate() {
+        if (!state.active) return;
+        if (state.intubated) {
+            log(`[${formatTimer()}] Advertencia: La vía aérea ya se encuentra aislada con tubo orotraqueal.`);
+            return;
+        }
+
+        // Fisiopatología de la inducción: la intubación puede provocar hipotensión por sedación y pérdida de tono simpático
+        state.intubated = true;
+        state.oxygenApplied = true;
+        state.pas = Math.max(45, state.pas - 6);
+        state.pad = Math.max(25, state.pad - 3);
+        state.score += 25;
+        log(`[${formatTimer()}] IOT completada con éxito. Vía aérea completamente protegida contra broncoaspiración.`);
+        log(`[${formatTimer()}] Ojo clínico: Se constata caída leve de PA post-inducción. Requiere vigilancia.`);
+        updateDashboard();
+    }
+
+    // [3] Cristaloides en Bolos Titulados
+    function actionFluids() {
+        if (!state.active) return;
+        state.fluidsCount++;
+
+        if (state.pam < 65) {
+            // Paciente en shock: reanimación efectiva
+            state.pas += 10;
+            state.pad += 5;
+            state.hr = Math.max(88, state.hr - 8);
             state.score += 20;
-            log(`[${timeStr()}] Eritromicina 250mg EV infundida. Vaciamiento gástrico acelerado, visibilidad endoscópica mejorada.`);
-            updateUI();
-        }
-
-        // [6] Terlipresina EV
-        function actionTerlipressin() {
-            if (!state.active) return;
+            log(`[${formatTimer()}] Bolo SF 0.9% 500cc infundido. PAM asciende a ${Math.round((state.pas + 2*state.pad)/3)} mmHg.`);
+        } else {
+            // Sobreexpansión con cristaloides en paciente normotenso: HEMODILUCIÓN Y ALZA PORTAL
+            state.hb = +(state.hb - 0.35).toFixed(2);
+            state.score -= 25;
+            log(`[${formatTimer()}] ALERTA FISIOPATOLÓGICA: Sobrehidratación con cristaloides. Hemodilución inducida (Hb cae a ${state.hb.toFixed(1)}) y lavado de factores.`);
             
             if (state.etiology === 'variceal') {
-                state.terlipressinActive = true;
-                state.bleedingSeverity = Math.max(0.8, state.bleedingSeverity - 1.5);
-                state.score += 35;
-                log(`[${timeStr()}] EXCELENTE: Terlipresina indicada oportunamente para sangrado por hipertensión portal.`);
-            } else {
-                // Error grave: Úlcera péptica no variceal tratada con vasoconstrictor esplácnico
-                state.score -= 50;
-                state.hr += 10;
-                state.pas -= 10; // Vasoespasmo o isquemia
-                log(`[${timeStr()}] IATROGENIA: Paciente con úlcera por AINEs (no cirrótico). Terlipresina causó isquemia periférica y riesgo coronario.`);
+                state.baseBleedRate += 0.015;
+                log(`[${formatTimer()}] ↑ Presión portal hidrostática por exceso de volumen: aumento de la fuga variceal.`);
             }
-            updateUI();
+        }
+        updateDashboard();
+    }
+
+    // [4] Transfusión Restrictiva (Villanueva / Baveno VII)
+    function actionTransfusion() {
+        if (!state.active) return;
+        state.transfusionsCount++;
+
+        // Gatillo estricto: Hb < 7.0 g/dL
+        if (state.hb < 7.0) {
+            state.hb = +(state.hb + 1.0).toFixed(2);
+            state.pas += 6;
+            state.pad += 3;
+            state.score += 35;
+            log(`[${formatTimer()}] Transfusión de 1U Glóbulos Rojos correcta (Gatillo Hb < 7.0 cumplido). Hb actual: ${state.hb.toFixed(1)} g/dL.`);
+        } else {
+            // Transfusión liberal innecesaria
+            state.hb = +(state.hb + 1.0).toFixed(2);
+            state.score -= 40;
+            log(`[${formatTimer()}] ERROR DE CONOCIMIENTO (Villanueva et al.): Transfundiste con Hb ≥ 7.0 g/dL. Mayor tasa de resangrado y mortalidad por hiperviscosidad y aumento portal.`);
+            if (state.etiology === 'variceal') {
+                state.baseBleedRate += 0.02;
+            }
+        }
+        updateDashboard();
+    }
+
+    // [5] Omeprazol Bolo EV
+    function actionOmeprazole() {
+        if (!state.active) return;
+        if (state.omeprazoleGiven) {
+            log(`[${formatTimer()}] Omeprazol ya infundido. Dosis de mantención vigente.`);
+            return;
+        }
+        state.omeprazoleGiven = true;
+        state.ph = 6.4;
+        state.score += 25;
+        log(`[${formatTimer()}] Omeprazol 80mg EV infundido. pH gástrico se eleva a ${state.ph}. Pepsina inactivada (el coágulo plaquetario ya no se disuelve).`);
+        updateDashboard();
+    }
+
+    // [6] Eritromicina Pre-EDA
+    function actionErythromycin() {
+        if (!state.active) return;
+        if (state.erythromycinGiven) {
+            log(`[${formatTimer()}] La Eritromicina ya fue administrada.`);
+            return;
+        }
+        state.erythromycinGiven = true;
+        state.stomachBlood = Math.max(10, state.stomachBlood - 40);
+        state.score += 20;
+        log(`[${formatTimer()}] Eritromicina 250mg EV infundida. Contracción antral inducida; vaciamiento gástrico despeja la visión endoscópica.`);
+        updateDashboard();
+    }
+
+    // [7] Terlipresina EV (Dilema Fisiopatológico Mayor)
+    function actionTerlipressin() {
+        if (!state.active) return;
+
+        if (state.etiology === 'variceal') {
+            state.terlipressinGiven = true;
+            state.terlipressinTimer = 0;
+            state.portalFlowFactor = 0.40; // Disminuye el flujo esplácnico un 60%
+            state.pas += 8; // Efecto vasoconstrictor V1 sistémico
+            state.pad += 5;
+            state.score += 45;
+            log(`[${formatTimer()}] FARMACOLOGÍA ÓPTIMA: Terlipresina 2mg EV administrada. Vasoconstricción esplácnica reduce el flujo portal y la tasa de sangrado.`);
+            log(`[${formatTimer()}] Correlato clínico: La velocidad de caída de hemoglobina se reduce notablemente.`);
+        } else {
+            // Iatrogenia: Úlcera por AINEs en no cirrótico con antecedentes cardiovasculares
+            state.score -= 60;
+            state.hr += 15;
+            state.pas -= 14; // Isquemia miocárdica refleja
+            state.pad -= 8;
+            log(`[${formatTimer()}] IATROGENIA CRÍTICA: Indicaste Terlipresina en un paciente con úlcera péptica por AINEs (sin cirrosis).`);
+            log(`[${formatTimer()}] EFECTO ADVERSO: Vasoespasmo coronario e isquemia distal innecesaria sin beneficio sobre el sangrado arterial.`);
+        }
+        updateDashboard();
+    }
+
+    // [8] Ceftriaxona Profilaxis
+    function actionCeftriaxone() {
+        if (!state.active) return;
+        if (state.ceftriaxoneGiven) return;
+        state.ceftriaxoneGiven = true;
+
+        if (state.etiology === 'variceal') {
+            state.score += 25;
+            log(`[${formatTimer()}] Ceftriaxona 1g EV iniciada: Profilaxis fundamental para prevenir peritonitis bacteriana espontánea y translocación.`);
+        } else {
+            state.score -= 20;
+            log(`[${formatTimer()}] Uso inapropiado de antibiótico de amplio espectro en paciente con úlcera sin patología hepática ni foco séptico.`);
+        }
+        updateDashboard();
+    }
+
+    /* ================= INSTRUMENTAL Y CAMPO ENDOSCÓPICO (CENTRAL) ================= */
+    function selectTool(toolName) {
+        state.selectedTool = toolName;
+        unhighlightTools();
+
+        const btn = document.getElementById(`tool-${toolName}`);
+        btn.classList.add('ring-2', 'ring-cyan-400', 'bg-cyan-950');
+
+        const toolLabels = {
+            'suction': 'ASPIRACIÓN ACTIVA',
+            'adrenalin': 'AGUJA DE ESCLEROSIS / ADRENALINA 1:10.000',
+            'clip': 'APLICADOR DE ENDOCLIP (TERAPIA MECÁNICA)',
+            'band': 'KIT DE LIGADURA CON BANDAS ELÁSTICAS'
+        };
+        document.getElementById('selected-tool-name').textContent = toolLabels[toolName];
+        
+        log(`[${formatTimer()}] Instrumental en mano: ${toolLabels[toolName]}. Haz clic sobre la lesión sangrante.`);
+    }
+
+    function unhighlightTools() {
+        ['suction', 'adrenalin', 'clip', 'band'].forEach(t => {
+            const el = document.getElementById(`tool-${t}`);
+            if (el) el.classList.remove('ring-2', 'ring-cyan-400', 'bg-cyan-950');
+        });
+    }
+
+    // Interacción directa al hacer clic sobre el vaso / várice
+    document.getElementById('target-site').addEventListener('click', () => {
+        if (!state.active) return;
+
+        if (!state.selectedTool) {
+            log(`[${formatTimer()}] ERROR TÉCNICO: Selecciona primero un instrumento de la bandeja inferior antes de intervenir.`);
+            return;
         }
 
-        // [7] Terapia Endoscópica (Clip + Adrenalina / Bandas)
-        function actionEndoTherapy() {
-            if (!state.active) return;
+        let visibility = 100 - state.stomachBlood;
 
-            // Se requiere visibilidad adecuada y estabilidad mínima
-            let visibility = 100 - state.stomachBloodLevel;
-            if (visibility < 40) {
-                log(`[${timeStr()}] FALLA TÉCNICA: Campo endoscópico inundado de sangre (${visibility}% visibilidad). Usa Eritromicina o aspira primero.`);
-                state.score -= 10;
+        // 1. Acción: Aspiración
+        if (state.selectedTool === 'suction') {
+            state.stomachBlood = Math.max(15, state.stomachBlood - 25);
+            state.score += 15;
+            log(`[${formatTimer()}] Aspiración endoscópica ejecutada. Se extraen coágulos del lumen gástrico.`);
+            updateDashboard();
+            return;
+        }
+
+        // Exigencia de visibilidad mínima para procedimientos finos
+        if (visibility < 40) {
+            log(`[${formatTimer()}] VISIÓN NULA (${Math.round(visibility)}%): El campo está completamente cubierto de sangre. Aspira o usa Eritromicina.`);
+            state.score -= 10;
+            return;
+        }
+
+        // 2. Acción: Inyección de Adrenalina 1:10.000
+        if (state.selectedTool === 'adrenalin') {
+            if (state.etiology === 'variceal') {
+                state.score -= 20;
+                log(`[${formatTimer()}] ERROR: La inyección de Adrenalina sola en várices esofágicas no es de elección (riesgo de necrosis de pared y sangrado).`);
+                return;
+            }
+            state.adrenalinInjected = true;
+            state.bleedStatus = 'ooze';
+            state.baseBleedRate = 0.02;
+            state.score += 25;
+            document.getElementById('adrenalin-halo').classList.remove('hidden');
+            log(`[${formatTimer()}] Adrenalina 1:10.000 inyectada en 4 cuadrantes peri-úlcera. Vasoconstricción local reduce el chorro a rezumado.`);
+            log(`[${formatTimer()}] RECORDATORIO CLÍNICO: La adrenalina sola NO es suficiente. Requiere una segunda modalidad (Endoclip).`);
+            updateDashboard();
+            return;
+        }
+
+        // 3. Acción: Aplicación de Endoclip (Terapia Mecánica para Úlcera)
+        if (state.selectedTool === 'clip') {
+            if (state.etiology === 'variceal') {
+                state.score -= 30;
+                log(`[${formatTimer()}] ERROR DE TÉCNICA: Intentaste colocar un clip sobre un cordón variceal dilatado. La terapia de elección es la LIGADURA CON BANDAS.`);
                 return;
             }
 
+            // Paciente con Úlcera Péptica
             if (state.ph < 6.0) {
-                log(`[${timeStr()}] ADVERTENCIA: Intentas hemostasia con pH ${state.ph}. El coágulo será lisado por la pepsina activa.`);
+                log(`[${formatTimer()}] ADVERTENCIA DE RESANGRADO: Aplicas clip con pH gástrico ${state.ph.toFixed(1)}. La pepsina activa compromete la agregación plaquetaria.`);
             }
 
-            state.clipped = true;
-            state.bleedingSeverity = 0;
-            state.score += 60;
+            state.hemostasisDone = true;
+            state.bleedStatus = 'stopped';
+            state.baseBleedRate = 0;
+            state.score += (state.adrenalinInjected ? 50 : 35); // Bonificación por terapia combinada
 
-            // Visual clip en la úlcera
-            const clipsDiv = document.getElementById('applied-clips');
-            clipsDiv.innerHTML = `
-                <div class="w-6 h-6 rounded bg-amber-400 border border-white flex items-center justify-center font-bold text-[9px] text-black shadow-lg animate-pulse">
+            const toolsDiv = document.getElementById('applied-tools');
+            toolsDiv.innerHTML = `
+                <div class="w-8 h-8 rounded bg-yellow-400 border border-white flex items-center justify-center font-bold text-[9px] text-black shadow-2xl">
                     CLIP
                 </div>
             `;
-            document.getElementById('blood-jet').classList.add('hidden');
-            log(`[${timeStr()}] ÉXITO: Clip hemostático desplegado en el vaso visible (Forrest Ia -> Resuelto). Hemorragia detenida.`);
-            updateUI();
+            document.getElementById('bleeding-jet').classList.add('hidden');
+            log(`[${formatTimer()}] ¡ÉXITO! Endoclip posicionado afrontando los bordes del vaso arterial. Hemostasia mecánica definitiva lograda.`);
+            updateDashboard();
+            return;
         }
 
-        // [8] Ceftriaxona
-        function actionCeftriaxone() {
-            if (!state.active) return;
-            if (state.ceftriaxoneGiven) return;
-            state.ceftriaxoneGiven = true;
-
-            if (state.etiology === 'variceal') {
-                state.score += 25;
-                log(`[${timeStr()}] Profilaxis antibiótica con Ceftriaxona iniciada: Previene translocación bacteriana y resangrado en cirrótico.`);
-            } else {
-                state.score -= 15;
-                log(`[${timeStr()}] Uso indiscriminado de Ceftriaxona en paciente no cirrótico sin foco séptico.`);
-            }
-            updateUI();
-        }
-
-        /* ================= HELPERS Y UI ================= */
-        function triggerHematemesisAlert() {
-            const overlay = document.getElementById('vomit-overlay');
-            overlay.style.opacity = '1';
-            document.getElementById('game-arena').classList.add('shake');
-            setTimeout(() => {
-                overlay.style.opacity = '0';
-                document.getElementById('game-arena').classList.remove('shake');
-            }, 1000);
-        }
-
-        function log(msg) {
-            const consoleBox = document.getElementById('console-log');
-            const div = document.createElement('div');
-            div.textContent = msg;
-            consoleBox.appendChild(div);
-            consoleBox.scrollTop = consoleBox.scrollHeight;
-        }
-
-        function timeStr() {
-            let m = Math.floor(state.timeSec / 60).toString().padStart(2, '0');
-            let s = (state.timeSec % 60).toString().padStart(2, '0');
-            return `${m}:${s}`;
-        }
-
-        function updateUI() {
-            document.getElementById('game-timer').textContent = timeStr();
-            document.getElementById('score-display').textContent = `${state.score} PTS`;
-
-            // Vitales
-            document.getElementById('pas-val').textContent = Math.round(state.pas);
-            document.getElementById('pad-val').textContent = Math.round(state.pad);
-            document.getElementById('pam-val').textContent = `PAM ${state.pam} mmHg`;
-            document.getElementById('hr-display').textContent = Math.round(state.hr);
-            document.getElementById('spo2-display').textContent = `${Math.round(state.spo2)}%`;
-            document.getElementById('hb-display').textContent = state.hb.toFixed(1);
-            document.getElementById('ph-display').textContent = state.ph.toFixed(1);
-
-            // Vía Aérea
-            const airwayEl = document.getElementById('airway-status');
-            if (state.intubated) {
-                airwayEl.textContent = "TOT PROTEGIDO";
-                airwayEl.className = "text-emerald-400 font-bold";
-            } else {
-                airwayEl.textContent = state.stomachBloodLevel > 70 ? "¡RIESGO INMINENTE!" : "BIGOTERA (Vulnerable)";
-                airwayEl.className = state.stomachBloodLevel > 70 ? "text-red-500 font-bold animate-pulse" : "text-amber-400 font-bold";
+        // 4. Acción: Ligadura con Bandas Elásticas (Várices Esofágicas)
+        if (state.selectedTool === 'band') {
+            if (state.etiology === 'ulcer') {
+                state.score -= 35;
+                log(`[${formatTimer()}] ERROR: Intentas desplegar bandas elásticas sobre una úlcera plana gástrica con vaso arterial. Se requiere ENDOCLIP.`);
+                return;
             }
 
-            // pH Alert
-            const phWarning = document.getElementById('ph-warning');
-            if (state.ph >= 6.0) {
-                phWarning.textContent = "PEPSINA INHIBIDA (HEMOSTASIA ÓPTIMA)";
-                phWarning.className = "text-emerald-400 text-[10px] font-bold";
-            } else {
-                phWarning.textContent = "LISIS ACTIVA COÁGULO (PEPSINA +)";
-                phWarning.className = "text-red-400 text-[10px] font-bold";
-            }
+            // Paciente Variceal
+            state.hemostasisDone = true;
+            state.bleedStatus = 'stopped';
+            state.baseBleedRate = 0;
+            state.score += 55;
 
-            // Campo gástrico y sangre
-            document.getElementById('stomach-blood').style.height = `${state.stomachBloodLevel}%`;
-            let visibility = Math.max(5, 100 - Math.round(state.stomachBloodLevel));
-            document.getElementById('visibility-val').textContent = `${visibility}% (${visibility < 40 ? 'Crítica/Inundado' : 'Aceptable'})`;
-            document.getElementById('visibility-val').className = visibility < 40 ? "font-bold text-rose-500" : "font-bold text-emerald-400";
+            const toolsDiv = document.getElementById('applied-tools');
+            toolsDiv.innerHTML = `
+                <div class="w-10 h-10 rounded-full border-4 border-amber-500 bg-red-900/60 flex items-center justify-center font-bold text-[9px] text-white">
+                    BANDA
+                </div>
+            `;
+            document.getElementById('bleeding-jet').classList.add('hidden');
+            log(`[${formatTimer()}] ¡ÉXITO! Banda elástica aspirada y liberada estrangulando el paquete varicoso. Sangrado variceal yugulado.`);
+            updateDashboard();
+            return;
+        }
+    });
 
-            // Forrest Badge
-            const badge = document.getElementById('bleeding-badge');
-            if (state.clipped) {
-                badge.textContent = "HEMOSTASIA LOGRADA (Forrest III/Fibrina)";
-                badge.className = "text-xs font-bold font-mono-tech bg-emerald-700 text-white px-2 py-1 rounded";
-            } else {
-                badge.textContent = "SANGRADO ACTIVO: EN CHORRO (Forrest Ia)";
-                badge.className = "text-xs font-bold font-mono-tech bg-red-600/90 text-white px-2 py-1 rounded animate-pulse";
-            }
+    /* ================= VISUALES Y ACTUALIZACIÓN UI ================= */
+    function triggerHematemesisVisual() {
+        const overlay = document.getElementById('vomit-screen');
+        overlay.style.opacity = '1';
+        document.getElementById('game-arena').classList.add('screen-shake');
+        setTimeout(() => {
+            overlay.style.opacity = '0';
+            document.getElementById('game-arena').classList.remove('screen-shake');
+        }, 800);
+    }
+
+    function log(msg) {
+        const box = document.getElementById('game-feed');
+        const row = document.createElement('div');
+        row.textContent = msg;
+        box.appendChild(row);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function formatTimer() {
+        let m = Math.floor(state.timeSec / 60).toString().padStart(2, '0');
+        let s = (state.timeSec % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    }
+
+    function updateDashboard() {
+        document.getElementById('game-timer').textContent = formatTimer();
+        document.getElementById('score-display').textContent = `${Math.max(0, state.score)} PTS`;
+
+        // Monitor hemodinámico
+        document.getElementById('pas-val').textContent = Math.round(state.pas);
+        document.getElementById('pad-val').textContent = Math.round(state.pad);
+        document.getElementById('pam-val').textContent = `PAM ${state.pam} mmHg`;
+        document.getElementById('hr-display').textContent = Math.round(state.hr);
+        document.getElementById('spo2-display').textContent = `${Math.round(state.spo2)}%`;
+        document.getElementById('hb-display').textContent = state.hb.toFixed(1);
+        document.getElementById('ph-display').textContent = state.ph.toFixed(1);
+
+        // Alertas visuales dinámicas de vitales
+        const cardBp = document.getElementById('card-bp');
+        if (state.pam < 65) cardBp.classList.add('vital-critical');
+        else cardBp.classList.remove('vital-critical');
+
+        const cardHb = document.getElementById('card-hb');
+        if (state.hb < 7.0) cardHb.classList.add('vital-critical');
+        else cardHb.classList.remove('vital-critical');
+
+        // Etiqueta de tasa de sangrado dinámico
+        const bleedRateLabel = document.getElementById('bleeding-rate-label');
+        if (state.hemostasisDone) {
+            bleedRateLabel.textContent = "Hemostasia lograda (0 g/s)";
+            bleedRateLabel.className = "text-[10px] text-emerald-400 font-sans";
+        } else {
+            let curRate = (state.baseBleedRate * state.portalFlowFactor).toFixed(3);
+            bleedRateLabel.textContent = `Caída: -${curRate} g/dL/s`;
+            bleedRateLabel.className = "text-[10px] text-rose-400 font-sans";
         }
 
-        function endGame(victory, title, critique) {
-            state.active = false;
-            clearInterval(gameInterval);
-            
-            const modal = document.getElementById('modal-gameover');
-            const titleEl = document.getElementById('modal-title');
-            const descEl = document.getElementById('modal-desc');
-            const critEl = document.getElementById('modal-critique');
-            const scoreEl = document.getElementById('final-score');
-
-            titleEl.textContent = title;
-            titleEl.className = victory ? "text-2xl font-bold mb-2 text-emerald-400" : "text-2xl font-bold mb-2 text-rose-500";
-            descEl.textContent = victory ? "Completaste la estabilización integral según las metas ESGE y Baveno VII." : "El caso clínico culminó con desenlace adverso debido a brechas en la reanimación.";
-            critEl.innerHTML = critique;
-            scoreEl.textContent = `${Math.max(0, state.score)} PTS`;
-
-            modal.classList.remove('hidden');
+        // Vía aérea
+        const airwayLabel = document.getElementById('airway-label');
+        const airwaySub = document.getElementById('airway-sub');
+        if (state.intubated) {
+            airwayLabel.textContent = "TOT FIJADO (Protegido)";
+            airwayLabel.className = "text-emerald-400 font-bold";
+            airwaySub.textContent = "Ventilación mecánica invasiva";
+            airwaySub.className = "text-[10px] text-emerald-300 font-sans";
+        } else if (state.oxygenApplied) {
+            airwayLabel.textContent = "MASCARILLA / VENTURI";
+            airwayLabel.className = "text-cyan-400 font-bold";
+            airwaySub.textContent = state.stomachBlood > 75 ? "¡ALTO RIESGO ASPIRACIÓN!" : "O2 complementario activo";
+            airwaySub.className = state.stomachBlood > 75 ? "text-[10px] text-rose-400 font-sans font-bold animate-pulse" : "text-[10px] text-cyan-300 font-sans";
+        } else {
+            airwayLabel.textContent = "AIRE AMBIENTE";
+            airwayLabel.className = "text-rose-400 font-bold";
+            airwaySub.textContent = "Sin soporte ventilatorio";
         }
 
-        function resetGame() {
-            initGame();
+        // Estado de pH y Pepsina
+        const phStateLabel = document.getElementById('ph-state-label');
+        if (state.ph >= 6.0) {
+            phStateLabel.textContent = "PEPSINA INACTIVA";
+            phStateLabel.className = "text-emerald-400 font-bold text-[10px]";
+        } else {
+            phStateLabel.textContent = "LISIS TROMBO (ÁCIDO)";
+            phStateLabel.className = "text-red-400 font-bold text-[10px]";
         }
 
-        // Manejo por teclado directo (Hotkeys 1-8 y ESC)
-        window.addEventListener('keydown', (e) => {
-            if (e.key === '1') actionIntubate();
-            if (e.key === '2') actionFluids();
-            if (e.key === '3') actionTransfuse();
-            if (e.key === '4') actionOmeprazole();
-            if (e.key === '5') actionErythromycin();
-            if (e.key === '6') actionTerlipressin();
-            if (e.key === '7') actionEndoTherapy();
-            if (e.key === '8') actionCeftriaxone();
-            if (e.key === 'Escape') resetGame();
+        // Vasoactivo Status
+        const terliStatus = document.getElementById('terli-status');
+        const splachnicFlow = document.getElementById('splachnic-flow');
+        if (state.terlipressinGiven) {
+            terliStatus.textContent = "BOLO ACTIVO (V1)";
+            terliStatus.className = "text-emerald-400 font-bold text-[10px]";
+            splachnicFlow.textContent = "40% (Flujo reducido)";
+            splachnicFlow.className = "text-emerald-400 font-bold";
+        } else {
+            terliStatus.textContent = "INACTIVA";
+            terliStatus.className = "text-slate-500 text-[10px]";
+            splachnicFlow.textContent = "100% (Máximo flujo)";
+            splachnicFlow.className = "text-rose-400 font-bold";
+        }
+
+        // Lago Hemático y Visibilidad
+        document.getElementById('blood-pool').style.height = `${state.stomachBlood}%`;
+        let vis = Math.max(5, Math.round(100 - state.stomachBlood));
+        const visLabel = document.getElementById('visibility-label');
+        visLabel.textContent = `${vis}% (${vis < 40 ? 'Crítica/Inundado' : 'Aceptable'})`;
+        visLabel.className = vis < 40 ? "font-bold text-rose-500" : "font-bold text-emerald-400";
+
+        // Stigma Badge Endoscópico
+        const stigma = document.getElementById('stigma-badge');
+        if (state.hemostasisDone) {
+            stigma.textContent = state.etiology === 'ulcer' ? "FORREST III: COÁGULO ESTABLE (CLIP)" : "VÁRICE LIGADA: HEMOSTASIA COMPLETA";
+            stigma.className = "text-xs font-bold bg-emerald-600 text-white px-2 py-0.5 rounded";
+        } else if (state.bleedStatus === 'ooze') {
+            stigma.textContent = "SANGRADO EN NAPA / REZUMANTE (Forrest Ib)";
+            stigma.className = "text-xs font-bold bg-amber-600 text-white px-2 py-0.5 rounded animate-pulse";
+        } else {
+            stigma.textContent = state.etiology === 'ulcer' ? "SANGRADO ARTERIAL EN CHORRO (Forrest Ia)" : "VÁRICE CON PUNTO SANGRANTE EN CHORRO";
+            stigma.className = "text-xs font-bold bg-red-600 text-white px-2 py-0.5 rounded animate-pulse";
+        }
+    }
+
+    /* ================= PANTALLA DE RESULTADOS ================= */
+    function finishGame(victory, title, critiqueBullets) {
+        state.active = false;
+        clearInterval(loopInterval);
+
+        const modal = document.getElementById('modal-outcome');
+        const titleEl = document.getElementById('outcome-title');
+        const subEl = document.getElementById('outcome-subtitle');
+        const critBox = document.getElementById('outcome-critique');
+        const finalScoreEl = document.getElementById('final-score-val');
+
+        titleEl.textContent = title;
+        titleEl.className = victory ? "text-2xl font-black mb-1.5 text-emerald-400 uppercase tracking-wide" : "text-2xl font-black mb-1.5 text-rose-500 uppercase tracking-wide";
+        subEl.textContent = victory ? "¡Objetivo cumplido! Has estabilizado las constantes vitales y el sangrado según las guías Baveno VII y ESGE." : "El paciente sufrió complicaciones graves no resueltas en la ventana crítica de reanimación.";
+
+        critBox.innerHTML = '';
+        critiqueBullets.forEach(b => {
+            const p = document.createElement('div');
+            p.textContent = `• ${b}`;
+            critBox.appendChild(p);
         });
 
-        // Click directo en el vaso para clip
-        document.getElementById('ulcer-site').addEventListener('click', () => {
-            actionEndoTherapy();
-        });
+        finalScoreEl.textContent = `${Math.max(0, state.score)} PTS`;
+        modal.classList.remove('hidden');
+    }
 
-        // Cargar al inicio
-        window.onload = initGame;
-    </script>
-</body>
-</html>
+    function resetGame() {
+        initGame();
+    }
+
+    /* ================= TECLADO DE ACCESO RÁPIDO ================= */
+    window.addEventListener('keydown', (e) => {
+        if (e.key === '1') actionOxygen();
+        if (e.key === '2') actionIntubate();
+        if (e.key === '3') actionFluids();
+        if (e.key === '4') actionTransfusion();
+        if (e.key === '5') actionOmeprazole();
+        if (e.key === '6') actionErythromycin();
+        if (e.key === '7') actionTerlipressin();
+        if (e.key === '8') actionCeftriaxone();
+        if (e.key === 'Escape') resetGame();
+    });
+
+    window.onload = initGame;
+</script>
